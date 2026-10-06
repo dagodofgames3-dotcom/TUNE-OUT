@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TUNE OUT - Complete 3D Horror Project</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #000; overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #game-canvas {
+            display: none;
+            width: 100%; height: 100%;
+        }
+
+        .crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.04));
+            background-size: 100% 4px, 6px 100%;
+            z-index: 10; pointer-events: none; opacity: 0.85;
+        }
+
+        #menu-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background-color: #05070a; z-index: 20; transition: opacity 1s ease;
+        }
+
+        h1 {
+            color: #d1f4ff; font-size: 4.5rem; letter-spacing: 0.8rem; margin-bottom: 3rem;
+            text-shadow: 0 0 10px rgba(0, 191, 255, 0.6), 0 0 30px rgba(0, 191, 255, 0.3);
+            animation: tv-flicker 2s infinite alternate;
+        }
+
+        .menu-btn {
+            display: block; background: transparent; color: #8fa4b0; border: 2px solid #233540;
+            padding: 12px 40px; margin: 15px auto; font-size: 1.2rem; font-weight: bold;
+            letter-spacing: 0.2rem; cursor: pointer; transition: all 0.3s ease; width: 260px;
+        }
+
+        .menu-btn:hover {
+            color: #ffffff; border-color: #00bfff; box-shadow: 0 0 15px rgba(0, 191, 255, 0.4);
+            transform: scale(1.05); background: rgba(0, 191, 255, 0.05);
+        }
+
+        #hud-overlay {
+            display: none; position: absolute; bottom: 20px; left: 20px;
+            color: #00ff66; background: rgba(0, 5, 10, 0.85);
+            border: 1px solid #005522; padding: 15px; border-radius: 4px;
+            z-index: 15; font-size: 0.9rem; line-height: 1.4rem; pointer-events: none;
+        }
+
+        #crosshair {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); color: rgba(255,255,255,0.4);
+            font-size: 1.5rem; z-index: 14; pointer-events: none;
+        }
+
+        #gameover-screen {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #020000; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 30; color: #ff3333;
+        }
+
+        #gameover-screen h2 {
+            font-size: 3.5rem; letter-spacing: 0.5rem; margin-bottom: 2rem;
+            text-shadow: 0 0 15px rgba(255, 0, 0, 0.8);
+        }
+
+        .gobtn {
+            border: 2px solid #551111; color: #b36666;
+        }
+        .gobtn:hover {
+            border-color: #ff3333; box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+            background: rgba(255, 0, 0, 0.05); color: #fff;
+        }
+
+        #warning-overlay {
+            display: none; position: absolute; top: 25%; left: 50%;
+            transform: translate(-50%, -50%); color: #ff2222; font-size: 2.2rem;
+            font-weight: bold; text-shadow: 0 0 10px #000; z-index: 16; text-align: center;
+            pointer-events: none; animation: pulse 0.5s infinite alternate;
+        }
+
+        @keyframes tv-flicker {
+            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+            20%, 24%, 55% { opacity: 0.7; text-shadow: none; }
+        }
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+
+    <div id="menu-container">
+        <h1>TUNE OUT</h1>
+        <button class="menu-btn" onclick="initializeVisualGame()">START APP</button>
+        <button class="menu-btn" onclick="alert('Controls:\nW,A,S,D - Move\nMouse - Turn Left/Right\nE - Grab Key / Hide in Closet\nF - Flashlight On/Off\nShift - Sprint (Makes Noise)')">CONTROLS</button>
+    </div>
+
+    <div id="crosshair">+</div>
+    <div id="warning-overlay">⚠️ ARRIVAL IMMINENT ⚠️</div>
+
+    <div id="hud-overlay">
+        <div><strong>-- RETRO TELEMETRY --</strong></div>
+        <div id="hud-keys">Keys Left: 3</div>
+        <div id="hud-battery">Battery: INFINITE</div>
+        <div id="hud-health">Vitals: 100%</div>
+        <div id="hud-state">AI State: IDLE</div>
+        <div id="hud-pos">Vector3: (2.0, 1.6, 2.0)</div>
+    </div>
+
+    <div id="gameover-screen">
+        <h2>CONNECTION TERMINATED</h2>
+        <p style="font-size:1.2rem; margin-bottom:2rem; color:#888;">The Locust pulled you into the void.</p>
+        <button class="menu-btn gobtn" onclick="resetEntireGame()">RETRY FROM SCRATCH</button>
+        <button class="menu-btn gobtn" onclick="returnToMainMenu()">ABANDON TRANSMISSION</button>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <script>
+        const GameState3D = {
+            survivalTimer: 120,
+            tvAlertTimer: 0,
+            isGameOver: false,
+            hasWon: false,
+            keysCollected: 0,
+            totalKeysNeeded: 3,
+            player: {
+                x: 2, y: 1.6, z: 2, radius: 0.4,
+                health: 100, isHiding: false, isSprinting: false
+            },
+            monster: {
+                x: 14, y: 0, z: 14,
+                state: 'IDLE', speed: 1.5, targetX: 14, targetZ: 14, animationTime: 0
+            }
+        };
+
+        const MazeLayout = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1],
+            [1,0,1,0,1,0,1,1,0,1,0,1,1,1,0,1],
+            [1,0,1,0,0,0,1,0,0,0,0,0,0,1,0,1],
+            [1,0,1,1,1,1,1,0,1,1,1,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,1],
+            [1,1,1,0,1,1,1,1,1,0,0,1,1,1,0,1],
+            [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1],
+            [1,0,1,1,1,0,1,1,1,1,1,1,0,1,0,1],
+            [1,0,0,0,1,0,1,0,0,0,0,1,0,1,0,1],
+            [1,1,1,0,1,0,1,0,1,1,0,1,0,0,0,1],
+            [1,0,0,0,0,0,0,0,1,0,0,1,1,1,0,1],
+            [1,0,1,1,1,1,1,1,1,0,1,1,0,0,0,1],
+            [1,0,1,0,0,0,0,0,0,0,1,0,0,1,0,1],
+            [1,0,0,0,1,0,1,1,1,0,0,0,0,1,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        let scene, camera, renderer, monsterGroup, flashlight;
+        let tvs = [], closets = [], keys = [], exitGate = null;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let cameraYaw = 0;
+        let wallMeshBlocks = [];
+        let textures = {};
+
+        function generateProceduralTextures() {
+            // 1. Mossy Blood Brick Texture
+            const brickCanvas = document.createElement('canvas');
+            brickCanvas.width = 256; brickCanvas.height = 256;
+            const ctx = brickCanvas.getContext('2d');
+            ctx.fillStyle = '#1c242b'; ctx.fillRect(0,0,256,256);
+            ctx.fillStyle = '#12181d';
+            for(let i=0; i<256; i+=32) {
+                ctx.fillRect(0, i, 256, 2);
+                for(let j=(i%64===0?0:16); j<256; j+=32) {
+                    ctx.fillRect(j, i, 2, 32);
+                }
+            }
+            ctx.fillStyle = 'rgba(130, 10, 10, 0.4)';
+            for(let k=0; k<12; k++) {
+                ctx.beginPath();
+                ctx.arc(Math.random()*256, Math.random()*256, Math.random()*30+10, 0, Math.PI*2);
+                ctx.fill();
+            }
+            textures.brick = new THREE.CanvasTexture(brickCanvas);
+
+            // 2. Rotten Wooden Planks Floor Texture
+            const floorCanvas = document.createElement('canvas');
+            floorCanvas.width = 256; floorCanvas.height = 256;
+            const fctx = floorCanvas.getContext('2d');
+            fctx.fillStyle = '#261c14'; fctx.fillRect(0,0,256,256);
+            fctx.fillStyle = '#17110c';
+            for(let i=0; i<256; i+=32) fctx.fillRect(0, i, 256, 4);
+            textures.floor = new THREE.CanvasTexture(floorCanvas);
+        }
+
+        function initializeVisualGame() {
+            document.getElementById('menu-container').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('menu-container').style.display = 'none';
+                document.getElementById('game-canvas').style.display = 'block';
+                document.getElementById('hud-overlay').style.display = 'block';
+                document.getElementById('crosshair').style.display = 'block';
+                
+                generateProceduralTextures();
+                setup3DScene();
+                setupInputListeners();
+                startGlobalIntervalLoops();
+                animate3DFrame();
+            }, 1000);
+        }
+
+        function setup3DScene() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x020305, 0.18);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(GameState3D.player.x, GameState3D.player.y, GameState3D.player.z);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+
+            const ambientLight = new THREE.AmbientLight(0x03060c, 0.6);
+            scene.add(ambientLight);
+
+            // Flashlight configuration (Infinite Power SpotLight)
+            flashlight = new THREE.SpotLight(0xffffff, 2.5, 14, Math.PI / 5, 0.5, 1);
+            flashlight.castShadow = true;
+            flashlight.shadow.mapSize.width = 512;
+            flashlight.shadow.mapSize.height = 512;
+            scene.add(flashlight);
+            scene.add(flashlight.target);
+
+            // Build Textured Floor
+            const floorGeo = new THREE.PlaneGeometry(60, 60);
+            const floorMat = new THREE.MeshStandardMaterial({ map: textures.floor, roughness: 0.9 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Build Textured Maze Walls
+            const wallGeo = new THREE.BoxGeometry(2, 3, 2);
+            const wallMat = new THREE.MeshStandardMaterial({ map: textures.brick, roughness: 0.8 });
+            
+            for (let r = 0; r < MazeLayout.length; r++) {
+                for (let c = 0; c < MazeLayout[r].length; c++) {
+                    if (MazeLayout[r][c] === 1) {
+                        const wall = new THREE.Mesh(wallGeo, wallMat);
+                        wall.position.set(c * 2, 1.5, r * 2);
+                        wall.castShadow = true;
+                        wall.receiveShadow = true;
+                        scene.add(wall);
+                        wallMeshBlocks.push(wall);
+                    }
+                }
+            }
+
+            // Spawn 4 Shaped Vintage CRT TVs
+            const tvPositions = [[2,14], [14,2], [26,14], [14,26]];
+            tvPositions.forEach((pos, idx) => {
+                const tvGroup = new THREE.Group();
+                
+                // Outer Cabinet Chassis
+                const chassisGeo = new THREE.BoxGeometry(0.8, 0.6, 0.6);
+                const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1f1510, roughness: 0.7 });
+                const chassis = new THREE.Mesh(chassisGeo, chassisMat);
+                chassis.castShadow = true;
+                tvGroup.add(chassis);
+
+                // Screen Panel Face
+                const screenGeo = new THREE.BoxGeometry(0.65, 0.45, 0.05);
+                const screenMat = new THREE.MeshStandardMaterial({ color: 0x112233, emissive: 0x0055cc, emissiveIntensity: 1.0 });
+                const screen = new THREE.Mesh(screenGeo, screenMat);
+                screen.position.z = 0.29;
+                tvGroup.add(screen);
+
+                tvGroup.position.set(pos[0], 0.8, pos[1]);
+                scene.add(tvGroup);
+
+                const pointLight = new THREE.PointLight(0x00aaff, 1.5, 5);
+                pointLight.position.set(pos[0], 0.8, pos[1] + 0.3);
+                scene.add(pointLight);
+
+                tvs.push({ group: tvGroup, light: pointLight, screen: screen, isCrackling: false, id: idx+1 });
+            });
+
+            // Spawn 5 Multi-Part Closets with Handles & Doors
+            const closetPositions = [[6,2], [2,10], [18,10], [10,22], [26,18]];
+            closetPositions.forEach((pos) => {
+                const cGroup = new THREE.Group();
+                const mainGeo = new THREE.BoxGeometry(1.2, 2.2, 0.8);
+                const mainMat = new THREE.MeshStandardMaterial({ color: 0x2b1a0d, roughness: 0.8 });
+                const mainBody = new THREE.Mesh(mainGeo, mainMat);
+                mainBody.castShadow = true;
+                cGroup.add(mainBody);
+
+                // Left Door Leaf
+                const doorGeo = new THREE.BoxGeometry(0.58, 2.1, 0.05);
+                const doorMat = new THREE.MeshStandardMaterial({ color: 0x362111, roughness: 0.8 });
+                const leftDoor = new THREE.Mesh(doorGeo, doorMat);
+                leftDoor.position.set(-0.29, 0, 0.4);
+                cGroup.add(leftDoor);
+
+                // Right Door Leaf
+                const rightDoor = new THREE.Mesh(doorGeo, doorMat);
+                rightDoor.position.set(0.29, 0, 0.4);
+                cGroup.add(rightDoor);
+
+                // Silver Spherical Handles
+                const handleGeo = new THREE.SphereGeometry(0.04, 8, 8);
+                const handleMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.2 });
+                const lHandle = new THREE.Mesh(handleGeo, handleMat);
+                lHandle.position.set(-0.06, 0, 0.45);
+                cGroup.add(lHandle);
+
+                cGroup.position.set(pos[0], 1.1, pos[1]);
+                scene.add(cGroup);
+                closets.push({ group: cGroup, leftDoor: leftDoor, rightDoor: rightDoor, open: false });
+            });
+
+            // Spawn 3 Collectible Silver Keys
+            const keyPositions = [[6,10], [22,2], [18,26]];
+            keyPositions.forEach((pos) => {
+                const keyGeo = new THREE.TorusGeometry(0.1, 0.03, 8, 16);
+                const keyMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.9, roughness: 0.1 });
+                const keyMesh = new THREE.Mesh(keyGeo, keyMat);
+                keyMesh.position.set(pos[0], 0.5, pos[1]);
+                scene.add(keyMesh);
+                keys.push(keyMesh);
+            });
+
+            // Spawn Exit Security Gate Mesh
+            const gateGeo = new THREE.BoxGeometry(2, 2.5, 0.2);
+            const gateMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.7 });
+            exitGate = new THREE.Mesh(gateGeo, gateMat);
+            exitGate.position.set(28, 1.25, 28);
+            scene.add(exitGate);
+
+            // ADVANCED STITCH-SKIN ACCURATE 3D LOCUST MODEL ASSEMBLY
+            monsterGroup = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xd9c5b2, roughness: 0.9 }); // Bone flesh color
+            const clothMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.9 }); // Stitched torso wrapping
+            const blackMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a });
+
+            // Elongated columns neck & ultra-thin black skeletal torso spine
+            const spineGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.7, 6);
+            const spine = new THREE.Mesh(spineGeo, blackMat);
+            spine.position.y = 1.3;
+            monsterGroup.add(spine);
+
+            const neckGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6);
+            const neck = new THREE.Mesh(neckGeo, skinMat);
+            neck.position.y = 2.1;
+            monsterGroup.add(neck);
+
+            // Stitched clothed upper chest
+            const chestGeo = new THREE.BoxGeometry(0.4, 0.5, 0.25);
+            const chest = new THREE.Mesh(chestGeo, clothMat);
+            chest.position.y = 1.75;
+            monsterGroup.add(chest);
+
+            // Sunken-eyed skull face head
+            const headGeo = new THREE.SphereGeometry(0.15, 12, 12);
+            const head = new THREE.Mesh(headGeo, skinMat);
+            head.position.y = 2.45;
+            head.scale.set(1, 1.3, 1); // Elongated head structure
+            monsterGroup.add(head);
+
+            // Long hair wire strands loops array cluster
+            for(let i=0; i<12; i++) {
+                const hairGeo = new THREE.TorusGeometry(0.12, 0.01, 4, 12);
+                const hair = new THREE.Mesh(hairGeo, blackMat);
+                hair.position.set((Math.random()-0.5)*0.1, 2.55, (Math.random()-0.5)*0.1);
+                hair.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+                monsterGroup.add(hair);
+            }
+
+            // Stilt limbs legs setup (stacked long bone-colored cylinder structures)
+            monsterGroup.legs = [];
+            for(let i=0; i<2; i++) {
+                const legJointGroup = new THREE.Group();
+                const upperLegGeo = new THREE.CylinderGeometry(0.04, 0.03, 0.7, 6);
+                const upperLeg = new THREE.Mesh(upperLegGeo, skinMat);
+                upperLeg.position.y = -0.35;
+                legJointGroup.add(upperLeg);
+
+                const lowerLegGeo = new THREE.CylinderGeometry(0.03, 0.01, 0.8, 6);
+                const lowerLeg = new THREE.Mesh(lowerLegGeo, skinMat);
+                lowerLeg.position.y = -1.1;
+                legJointGroup.add(lowerLeg);
+
+                legJointGroup.position.set(i === 0 ? -0.15 : 0.15, 1.0, 0);
+                monsterGroup.add(legJointGroup);
+                monsterGroup.legs.push(legJointGroup);
+            }
+
+            // Extreme elongated arms with razor needle pointer blades extending down
+            monsterGroup.arms = [];
+            for(let i=0; i<2; i++) {
+                const armGroup = new THREE.Group();
+                const armBoneGeo = new THREE.CylinderGeometry(0.03, 0.02, 0.9, 6);
+                const armBone = new THREE.Mesh(armBoneGeo, skinMat);
+                armBone.position.y = -0.45;
+                armGroup.add(armBone);
+
+                const needleGeo = new THREE.CylinderGeometry(0.015, 0.001, 1.2, 4);
+                const needle = new THREE.Mesh(needleGeo, blackMat);
+                needle.position.y = -1.5;
+                armGroup.add(needle);
+
+                armGroup.position.set(i === 0 ? -0.25 : 0.25, 1.9, 0);
+                monsterGroup.add(armGroup);
+                monsterGroup.arms.push(armGroup);
+            }
+
+            monsterGroup.position.set(GameState3D.monster.x, 0.5, GameState3D.monster.z);
+            scene.add(monsterGroup);
+        }
+
+        function setupInputListeners() {
+            const canvas = document.getElementById('game-canvas');
+            canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+            canvas.addEventListener('click', () => { if(!GameState3D.isGameOver) canvas.requestPointerLock(); });
+
+            document.addEventListener('mousemove', (e) => {
+                if (document.pointerLockElement === canvas && !GameState3D.player.isHiding && !GameState3D.isGameOver) {
+                    cameraYaw -= e.movementX * 0.003;
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (GameState3D.isGameOver) return;
+                const k = e.key.toLowerCase();
+                if (k === 'w') moveForward = true;
+                if (k === 's') moveBackward = true;
+                if (k === 'a') moveLeft = true;
+                if (k === 'd') moveRight = true;
+                if (e.key === 'Shift') GameState3D.player.isSprinting = true;
+                if (k === 'f') toggleFlashlight();
+                if (k === 'e') processInteractionAction();
+            });
+
+            document.addEventListener('keyup', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === 'w') moveForward = false;
+                if (k === 's') moveBackward = false;
+                if (k === 'a') moveLeft = false;
+                if (k === 'd') moveRight = false;
+                if (e.key === 'Shift') GameState3D.player.isSprinting = false;
+            });
+        }
+
+        function toggleFlashlight() {
+            flashlight.visible = !flashlight.visible;
+        }
+
+        function checkWallCollision(nextX, nextZ) {
+            for (let block of wallMeshBlocks) {
+                let dx = nextX - block.position.x;
+                let dz = nextZ - block.position.z;
+                if (Math.abs(dx) < 1.3 && Math.abs(dz) < 1.3) {
+                    return true; // Overlap detected
+                }
+            }
+            return false;
+        }
+
+        function processInteractionAction() {
+            if (GameState3D.isGameOver) return;
+
+            // 1. Check Closets Interaction
+            for (let closet of closets) {
+                let dist = Math.hypot(camera.position.x - closet.group.position.x, camera.position.z - closet.group.position.z);
+                if (dist < 1.4) {
+                    GameState3D.player.isHiding = !GameState3D.player.isHiding;
+                    closet.open = GameState3D.player.isHiding;
+                    
+                    if (GameState3D.player.isHiding) {
+                        GameState3D.player.y = 0.8; // Crouch depth inside wardrobe layout
+                        closet.leftDoor.rotation.y = Math.PI / 1.8;
+                        closet.rightDoor.rotation.y = -Math.PI / 1.8;
+                    } else {
+                        GameState3D.player.y = 1.6; // Stand back up
+                        closet.leftDoor.rotation.y = 0;
+                        closet.rightDoor.rotation.y = 0;
+                    }
+                    return;
+                }
+            }
+
+            // 2. Check Key Collection
+            for (let i = keys.length - 1; i >= 0; i--) {
+                let keyMesh = keys[i];
+                let dist = Math.hypot(camera.position.x - keyMesh.position.x, camera.position.z - keyMesh.position.z);
+                if (dist < 1.2) {
+                    scene.remove(keyMesh);
+                    keys.splice(i, 1);
+                    GameState3D.keysCollected++;
+                    document.getElementById('hud-keys').innerText = `Keys Left: ${GameState3D.totalKeysNeeded - GameState3D.keysCollected}`;
+                    if(GameState3D.keysCollected === GameState3D.totalKeysNeeded) {
+                        alert("🗝️ ALL KEYS COLLECTED! Locate the exit gate at (28, 28) quickly!");
+                    }
+                    return;
+                }
+            }
+
+            // 3. Check Exit Escape Action
+            let gateDist = Math.hypot(camera.position.x - exitGate.position.x, camera.position.z - exitGate.position.z);
+            if (gateDist < 1.5) {
+                if (GameState3D.keysCollected >= GameState3D.totalKeysNeeded) {
+                    GameState3D.hasWon = true;
+                    GameState3D.isGameOver = true;
+                    document.exitPointerLock();
+                    alert("🏆 ESCAPE SUCCESSFUL! You unlocked the metal gate and evaded The Locust!");
+                    window.location.reload();
+                } else {
+                    alert("The exit gate is locked. You need all 3 keys scattered across the maze corners.");
+                }
+            }
+        }
+
+        function startGlobalIntervalLoops() {
+            setInterval(() => {
+                if (GameState3D.isGameOver || GameState3D.hasWon) return;
+
+                if (GameState3D.survivalTimer > 0) {
+                    GameState3D.survivalTimer--;
+                }
+
+                // Health Adrenaline Rebound calculations
+                if (GameState3D.player.isHiding && GameState3D.player.health < 100) {
+                    if (GameState3D.survivalTimer % 5 === 0) {
+                        GameState3D.player.health = Math.min(100, GameState3D.player.health + 4);
+                    }
+                }
+
+                // Random television activation countdown cycle trigger
+                if (GameState3D.monster.state === 'IDLE' && Math.random() < 0.20 && GameState3D.tvAlertTimer === 0) {
+                    const activeTV = tvs[Math.floor(Math.random() * tvs.length)];
+                    activeTV.isCrackling = true;
+                    GameState3D.monster.state = 'ALERT';
+                    GameState3D.tvAlertTimer = 10;
+                    document.getElementById('warning-overlay').style.display = 'block';
+                }
+
+                if (GameState3D.monster.state === 'ALERT') {
+                    if (GameState3D.tvAlertTimer > 0) {
+                        GameState3D.tvAlertTimer--;
+                        document.getElementById('warning-overlay').innerText = `⚠️ CRACKLE!! ARRIVAL IN: ${GameState3D.tvAlertTimer}s`;
+                        
+                        // Flickering screen visual manifestation
+                        tvs.forEach(tv => {
+                            if(tv.isCrackling) {
+                                tv.screen.material.emissiveIntensity = Math.random() * 4 + 2;
+                                tv.light.intensity = Math.random() * 5 + 3;
+                            }
+                        });
+                    } else {
+                        // Spawn timer complete! The Locust crawls out of the crackling television chassis
+                        document.getElementById('warning-overlay').style.display = 'none';
+                        GameState3D.monster.state = 'HUNT';
+                        const spawningTV = tvs.find(t => t.isCrackling);
+                        if (spawningTV) {
+                            GameState3D.monster.x = spawningTV.group.position.x;
+                            GameState3D.monster.z = spawningTV.group.position.z;
+                            spawningTV.isCrackling = false;
+                            spawningTV.screen.material.emissiveIntensity = 1.0;
+                            spawningTV.light.intensity = 1.5;
+                        }
+                    }
+                }
+
+                // Procedural wandering hunt nodes updates
+                if (GameState3D.monster.state === 'HUNT' && Math.random() < 0.25) {
+                    GameState3D.monster.targetX = camera.position.x + (Math.random() * 8 - 4);
+                    GameState3D.monster.targetZ = camera.position.z + (Math.random() * 8 - 4);
+                }
+
+            }, 1000);
+        }
+
+        function animate3DFrame() {
+            if (GameState3D.isGameOver) return;
+            requestAnimationFrame(animate3DFrame);
+
+            // Frame Movement Calculus with Wall Collisions
+            if (!GameState3D.player.isHiding) {
+                let speed = GameState3D.player.isSprinting ? 0.08 : 0.04;
+                let nextX = camera.position.x;
+                let nextZ = camera.position.z;
+
+                if (GameState3D.player.isSprinting && (moveForward || moveBackward || moveLeft || moveRight)) {
+                    // Sonic sphere sound trap breakout override
+                    GameState3D.monster.state = 'SPRINT';
+                    GameState3D.monster.targetX = camera.position.x;
+                    GameState3D.monster.targetZ = camera.position.z;
+                }
+
+                if (moveForward) {
+                    nextX += Math.sin(cameraYaw) * -speed;
+                    nextZ += Math.cos(cameraYaw) * -speed;
+                }
+                if (moveBackward) {
+                    nextX -= Math.sin(cameraYaw) * -speed;
+                    nextZ -= Math.cos(cameraYaw) * -speed;
+                }
+                if (moveLeft) {
+                    nextX += Math.cos(cameraYaw) * -speed;
+                    nextZ -= Math.sin(cameraYaw) * -speed;
+                }
+                if (moveRight) {
+                    nextX -= Math.cos(cameraYaw) * -speed;
+                    nextZ += Math.cos(cameraYaw) * -speed;
+                }
+
+                // Commit positional coordinates only if no structural overlapping occurs
+                if (!checkWallCollision(nextX, camera.position.z)) camera.position.x = nextX;
+                if (!checkWallCollision(camera.position.x, nextZ)) camera.position.z = nextZ;
+            }
+
+            // Sync structural spatial orientation looking vectors
+            camera.rotation.set(0, 0, 0);
+            camera.rotation.y = cameraYaw;
+            camera.position.y = GameState3D.player.y;
+
+            // Flashlight vector matrix translation attachment
+            flashlight.position.copy(camera.position);
+            const vectorDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            flashlight.target.position.copy(camera.position).add(vectorDir);
+
+            // Interpolate Locust 3D positioning rigs & sinusoidal limb animations
+            if (GameState3D.monster.state === 'HUNT' || GameState3D.monster.state === 'SPRINT') {
+                let dx = GameState3D.monster.targetX - monsterGroup.position.x;
+                let dz = GameState3D.monster.targetZ - monsterGroup.position.z;
+                let dist = Math.hypot(dx, dz);
+                let speedMod = GameState3D.monster.state === 'SPRINT' ? 0.06 : 0.025;
+
+                if (dist > 0.2) {
+                    monsterGroup.position.x += (dx / dist) * speedMod;
+                    monsterGroup.position.z += (dz / dist) * speedMod;
+                    
+                    // Face movement coordinate vectors
+                    monsterGroup.rotation.y = Math.atan2(dx, dz);
+                } else if (GameState3D.monster.state === 'SPRINT') {
+                    GameState3D.monster.state = 'HUNT';
+                }
+
+                // Sinusoidal twitching animation rigs based on user image style
+                GameState3D.monster.animationTime += 0.1;
+                monsterGroup.arms.forEach((arm, i) => {
+                    arm.rotation.z = Math.sin(GameState3D.monster.animationTime) * 0.15 + (i===0?-0.1:0.1);
+                    arm.rotation.x = Math.cos(GameState3D.monster.animationTime) * 0.1;
+                });
+                monsterGroup.legs.forEach((leg, i) => {
+                    leg.rotation.x = Math.sin(GameState3D.monster.animationTime * 1.5) * 0.25;
+                });
+                // Twitching erratic spine offset translation
+                monsterGroup.position.y = 0.5 + Math.sin(Date.now() * 0.03) * 0.05;
+            }
+
+            // Continuous kill collision intersections
+            let killDist = Math.hypot(monsterGroup.position.x - camera.position.x, monsterGroup.position.z - camera.position.z);
+            if (killDist < 0.9 && !GameState3D.player.isHiding) {
+                executeFatalGameOverSequence();
+            }
+
+            // Sync diagnostic logs inside HUD text boxes
+            document.getElementById('hud-health').innerText = `Vitals: ${GameState3D.player.health}%`;
+            document.getElementById('hud-state').innerText = `AI State: ${GameState3D.monster.state}`;
+            document.getElementById('hud-pos').innerText = `Vector3: (${camera.position.x.toFixed(1)}, ${camera.position.y.toFixed(1)}, ${camera.position.z.toFixed(1)})`;
+
+            renderer.render(scene, camera);
+        }
+
+        function executeFatalGameOverSequence() {
+            GameState3D.isGameOver = true;
+            document.exitPointerLock();
+            
+            document.getElementById('game-canvas').style.display = 'none';
+            document.getElementById('hud-overlay').style.display = 'none';
+            document.getElementById('crosshair').style.display = 'none';
+            document.getElementById('warning-overlay').style.display = 'none';
+            document.getElementById('gameover-screen').style.display = 'flex';
+        }
+
+        function resetEntireGame() {
+            window.location.reload(); // Re-scatters keys and boots full workspace loop
+        }
+
+        function returnToMainMenu() {
+            document.getElementById('gameover-screen').style.display = 'none';
+            document.getElementById('menu-container').style.opacity = '1';
+            document.getElementById('menu-container').style.display = 'flex';
+            // Re-setup structural default entries variables
+            GameState3D.isGameOver = false;
+            GameState3D.keysCollected = 0;
+            camera.position.set(2, 1.6, 2);
+            cameraYaw = 0;
+        }
+    </script>
+</body>
+</html>
